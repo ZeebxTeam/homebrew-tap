@@ -1,0 +1,47 @@
+# Mantém os casks na release mais nova do Zeebx e confere que continuam válidos.
+#
+# Roda todo dia e à mão, pela aba Actions. O tap se atualiza sozinho, sem nada no repositório do
+# emulador: lá a release sai como rascunho e só é publicada depois de conferida, e é só aí que ela
+# aparece para este script. Assim também não é preciso um token com acesso a dois repositórios.
+name: atualiza
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  casks:
+    # O macOS porque é onde o `brew` já vem, e o `audit` de um cask de app confere mais coisa nele.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sobe para a release mais nova
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: python3 .github/scripts/atualiza.py
+
+      # O `brew` só audita casks de um tap instalado: o checkout vira o tap `zeebxteam/tap`.
+      - name: Confere os casks
+        run: |
+          tap="$(brew --repository)/Library/Taps/zeebxteam/homebrew-tap"
+          mkdir -p "$(dirname "$tap")"
+          ln -s "$GITHUB_WORKSPACE" "$tap"
+          brew style --cask Casks/*.rb
+          brew audit --cask --online zeebxteam/tap/zeebx-qt zeebxteam/tap/zeebx
+
+      - name: Commita
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          git diff --quiet && { echo "nada mudou"; exit 0; }
+          versao=$(sed -n 's/^  version "\(.*\)"/\1/p' Casks/zeebx-qt.rb)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Os casks sobem para a $versao"
+          git push
