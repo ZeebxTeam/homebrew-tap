@@ -1,11 +1,37 @@
 cask "zeebx-qt" do
   arch arm: "arm64", intel: "x86_64"
+  os macos: "macos-#{arch}.dmg", linux: "linux-#{arch}.AppImage"
 
   version "0.4.1"
-  sha256 arm:   "6a0f26f5aa79e4e8e9d113cf7ed7315021085705315ed4cc3a9295d147db31c2",
-         intel: "47c7e3de67c43cdb3fa9069c3962d077bae5caae425fb111e7e141528a51a9ed"
+  sha256 arm:          "6a0f26f5aa79e4e8e9d113cf7ed7315021085705315ed4cc3a9295d147db31c2",
+         intel:        "47c7e3de67c43cdb3fa9069c3962d077bae5caae425fb111e7e141528a51a9ed",
+         x86_64_linux: "b16e88188faeb292e81af5b067997a5e667231eab6e399cfcc9aefb5e4c3faba"
 
-  url "https://github.com/ZeebxTeam/zeebx-emu/releases/download/v#{version}/zeebx-standalone-qt-macos-#{arch}.dmg"
+  on_macos do
+    # O Qt 6.11 do pacote pede o macOS 13.
+    depends_on macos: :ventura
+
+    app "Zeebx Qt.app"
+
+    # A mesma pasta do outro cask: o `zap` de um leva as configurações e os saves do outro.
+    zap trash: "~/Library/Application Support/Zeebx"
+
+    caveats <<~EOS
+      #{token} is not signed by an Apple Developer ID. On first launch, macOS blocks it:
+      open System Settings > Privacy & Security and choose "Open Anyway".
+    EOS
+  end
+  on_linux do
+    # A release só tem AppImage de x86_64.
+    depends_on arch: :x86_64
+
+    app_image "zeebx-standalone-qt-linux-x86_64.AppImage", target: "zeebx-qt.AppImage"
+
+    # A mesma pasta do outro cask: o `zap` de um leva as configurações e os saves do outro.
+    zap trash: "~/.config/zeebx"
+  end
+
+  url "https://github.com/ZeebxTeam/zeebx-emu/releases/download/v#{version}/zeebx-standalone-qt-#{os}"
   name "Zeebx"
   desc "Zeebo console emulator"
   homepage "https://github.com/ZeebxTeam/zeebx-emu"
@@ -21,16 +47,4 @@ cask "zeebx-qt" do
   # O emulador se atualiza sozinho (ver `src/ui/atualizacao.rs` no repositório dele): o
   # `brew upgrade` só mexe nele com `--greedy`.
   auto_updates true
-  # O Qt 6.11 do pacote pede o macOS 13.
-  depends_on macos: ">= :ventura"
-
-  app "Zeebx Qt.app"
-
-  # A mesma pasta do cask `zeebx`: o `zap` de um leva as configurações e os saves do outro.
-  zap trash: "~/Library/Application Support/Zeebx"
-
-  caveats <<~EOS
-    #{token} is not signed by an Apple Developer ID. On first launch, macOS blocks it:
-    open System Settings > Privacy & Security and choose "Open Anyway".
-  EOS
 end

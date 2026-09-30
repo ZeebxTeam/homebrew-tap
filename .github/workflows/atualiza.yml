@@ -18,18 +18,24 @@ permissions:
 
 jobs:
   casks:
-    # O macOS porque é onde o `brew` já vem, e o `audit` de um cask de app confere mais coisa nele.
-    runs-on: macos-latest
+    # Os dois sistemas dos casks: no macOS o `audit` confere o `.dmg`, no Linux o AppImage. Os dois
+    # runners já trazem o `brew`. Só o do macOS sobe a versão e commita, para não haver dois pushes.
+    strategy:
+      fail-fast: false
+      matrix:
+        sistema: [macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.sistema }}
     steps:
       - uses: actions/checkout@v5
 
       - name: Sobe para a release mais nova
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: runner.os == 'macOS' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: python3 .github/scripts/atualiza.py
 
       # O `brew` só audita casks de um tap instalado: o checkout vira o tap `zeebxteam/tap`.
       - name: Confere os casks
         run: |
+          eval "$($(command -v brew || echo /home/linuxbrew/.linuxbrew/bin/brew) shellenv)"
           tap="$(brew --repository)/Library/Taps/zeebxteam/homebrew-tap"
           mkdir -p "$(dirname "$tap")"
           ln -s "$GITHUB_WORKSPACE" "$tap"
@@ -37,7 +43,7 @@ jobs:
           brew audit --cask --online zeebxteam/tap/zeebx-qt zeebxteam/tap/zeebx
 
       - name: Commita
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: runner.os == 'macOS' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         run: |
           git diff --quiet && { echo "nada mudou"; exit 0; }
           versao=$(sed -n 's/^  version "\(.*\)"/\1/p' Casks/zeebx-qt.rb)
